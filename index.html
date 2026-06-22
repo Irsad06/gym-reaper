@@ -222,6 +222,21 @@ const weekSched={Monday:'Chest + Triceps',Tuesday:'Back + Biceps',Wednesday:'Sho
 const muscleGroups=['Chest','Back','Shoulders','Biceps','Triceps','Legs','Core','Full Body'];
 const allExercises=[...new Set([...Object.values(defaultTemplates).flat(),...Object.values(templates).flat()])];
 
+// ── BUILD MUSCLE GROUP MAP ────────────────
+const exerciseMuscleMap={};
+Object.entries(defaultTemplates).forEach(([muscle,exs])=>{
+    exs.forEach(ex=>{
+        if(!exerciseMuscleMap[ex])exerciseMuscleMap[ex]=[];
+        if(!exerciseMuscleMap[ex].includes(muscle))exerciseMuscleMap[ex].push(muscle);
+    });
+});
+Object.entries(templates).forEach(([muscle,exs])=>{
+    exs.forEach(ex=>{
+        if(!exerciseMuscleMap[ex])exerciseMuscleMap[ex]=[];
+        if(!exerciseMuscleMap[ex].includes(muscle))exerciseMuscleMap[ex].push(muscle);
+    });
+});
+
 function save(k,v){ try{ localStorage[k]=JSON.stringify(v); }catch(e){} }
 function getTodayEntry(){ return log.find(e=>e.date===todayStr)||null; }
 function getTodayType(){
@@ -257,7 +272,7 @@ const nextRank=rankTiers[rankTiers.indexOf(cr)+1]||null;
 const targetBF=8.0,startBF=bfLog.length>0?bfLog[0].bodyFat:13.2,latestBF=bfLog.length>0?bfLog[bfLog.length-1].bodyFat:startBF;
 const goalProgress=Math.min(100,Math.max(0,Math.round((startBF-latestBF)/(startBF-targetBF)*100)));
 
-// ─�� HELPERS ─────────────────────────────
+// ── HELPERS ─────────────────────────────
 function S_esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function toast(msg){const t=S('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 function celebrate(icon='🎉'){const c=S('#celebration');c.textContent=icon;c.style.animation='none';void c.offsetHeight;c.style.animation='celebrate 1.5s ease forwards';}
@@ -608,13 +623,31 @@ function populateRecentExs(){
 }
 function populateExList(filter='all',search=''){
     const s=(S('#exSearch')?.value||'').toLowerCase();
-    let exs=allExercises;if(s)exs=exs.filter(e=>e.toLowerCase().includes(s));
+    let exs=allExercises;
+    // Apply search filter
+    if(s)exs=exs.filter(e=>e.toLowerCase().includes(s));
+    // Apply muscle group filter
+    if(filter&&filter!=='all'){
+        exs=exs.filter(e=>{
+            const muscles=exerciseMuscleMap[e]||[];
+            return muscles.some(m=>m.toLowerCase().includes(filter.toLowerCase()));
+        });
+    }
     const container=S('#exList');if(!container)return;
     container.innerHTML=exs.map(e=>`<div style="padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;">
         <span>${S_esc(e)}</span><button class="btn btn-sm btn-outline" onclick="addExToToday('${S_esc(e)}')">+ Today</button></div>`).join('')||'<div style="color:var(--text-muted);">No exercises found</div>';
 }
 window.filterLibrary=function(muscle){
-    if(muscle&&muscle!=='all'){SA('.tag[data-muscle]').forEach(t=>{t.classList.remove('tag-active');t.classList.add('tag-inactive');});const active=S(`.tag[data-muscle="${muscle}"]`);if(active){active.classList.add('tag-active');active.classList.remove('tag-inactive');}}
+    if(muscle&&muscle!=='all'){
+        SA('.tag[data-muscle]').forEach(t=>{t.classList.remove('tag-active');t.classList.add('tag-inactive');});
+        const active=S(`.tag[data-muscle="${muscle}"]`);
+        if(active){active.classList.add('tag-active');active.classList.remove('tag-inactive');}
+    }else{
+        // Reset all to inactive, set 'all' active
+        SA('.tag[data-muscle]').forEach(t=>{t.classList.remove('tag-active');t.classList.add('tag-inactive');});
+        S('.tag[data-muscle="all"]').classList.add('tag-active');
+        S('.tag[data-muscle="all"]').classList.remove('tag-inactive');
+    }
     populateExList(muscle||'all');
 };
 window.addExToToday=function(ex){toast(`${ex} ready — log sets in Workout tab`);renderWorkout();};
